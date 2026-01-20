@@ -6,12 +6,13 @@ import {AppManagerService, DeviceManagerService, RepositoryItem} from '../core/s
 import {MessageDialogComponent} from '../shared/components/message-dialog/message-dialog.component';
 import {ProgressDialogComponent} from '../shared/components/progress-dialog/progress-dialog.component';
 import {keyBy} from 'lodash';
-import {open as showOpenDialog} from '@tauri-apps/plugin-dialog';
+import {open as showOpenDialog, OpenDialogOptions} from '@tauri-apps/plugin-dialog';
 import {basename, downloadDir} from "@tauri-apps/api/path";
 import {APP_ID_HBCHANNEL} from "../shared/constants";
 import {HbchannelRemoveComponent} from "./hbchannel-remove/hbchannel-remove.component";
 import {StatStorageInfoComponent} from "../shared/components/stat-storage-info/stat-storage-info.component";
 import {DetailsComponent} from "./details/details.component";
+import {type as osType} from "@tauri-apps/plugin-os";
 
 @Component({
     selector: 'app-apps',
@@ -75,11 +76,24 @@ export class AppsComponent implements OnInit, OnDestroy {
 
     async openInstallChooser(): Promise<void> {
         if (!this.device) return;
-        const path = await showOpenDialog({
-            filters: [{name: 'IPK package', extensions: ['ipk']}],
+        const dialogOptions: OpenDialogOptions = {
             multiple: false,
-            defaultPath: await downloadDir(),
-        }).then(result => result);
+        };
+        if (osType() !== 'android') {
+            dialogOptions.filters = [{name: 'IPK package', extensions: ['ipk']}];
+            dialogOptions.defaultPath = await downloadDir();
+        }
+        const path = await showOpenDialog(dialogOptions)
+            .then(result => typeof result === 'string' ? result : result?.[0] ?? null)
+            .catch((error) => {
+                MessageDialogComponent.open(this.modalService, {
+                    title: 'Failed to open file picker',
+                    message: 'Could not open the file picker. Please try again.',
+                    error: error as Error,
+                    positive: 'Close',
+                });
+                return null;
+            });
         if (!path) {
             return;
         }
